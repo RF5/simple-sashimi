@@ -101,6 +101,12 @@ def train(rank, cfg: TrainConfig):
 
     model = SashimiAR(cfg.model_cfg).to(device)
     loss_fn = torch.nn.CrossEntropyLoss().to(device)
+
+    base_params = []
+    special_params = []
+    for nm, p in model.named_parameters():
+        if hasattr(p, '_optim'): special_params.append(p)
+        else: base_params.append(p)
     
     logging.info(f"Initialized rank {rank}")
     
@@ -126,7 +132,11 @@ def train(rank, cfg: TrainConfig):
         if rank == 0: logging.info("Multi-gpu detected")
         model = DDP(model, device_ids=[rank]).to(device)
 
-    optim = torch.optim.AdamW(chain(model.parameters(), loss_fn.parameters()), cfg.start_lr, weight_decay=0)
+    optim = torch.optim.AdamW([ 
+        {'params': base_params},
+        {'params': special_params, 'lr': cfg.model_cfg.lr}
+    ], cfg.start_lr, weight_decay=0)
+    
     if state_dict is not None: optim.load_state_dict(state_dict['optim_state_dict'])
 
     train_df, valid_df = pd.read_csv(cfg.train_csv), pd.read_csv(cfg.valid_csv)
