@@ -1,0 +1,4 @@
+splits/
+**/__pycache__/
+runs/
+*.zip
