@@ -1,9 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import MISSING, dataclass, field
 from typing import List, Tuple, Union
+import numpy as np
 
-# from omegaconf import MISSING, OmegaConf, open_dict
-# from omegaconf.dictconfig import DictConfig
-# from omegaconf.listconfig import ListConfig
 
 def fix(blah): return field(default_factory=lambda: blah)
 
@@ -34,11 +32,11 @@ class AutoregressiveConfig:
     # For S4 parameters, we only train Λ and C with the recommended learning rate of
     # 0.001, and freeze all other parameters for simplicity (including pp∗, B, dt)
     trainable: dict = fix({
-        'dt': False,
+        'dt': True,
         'A': True,
         # C is always trained. 
-        'P': False,
-        'B': False,
+        'P': True,
+        'B': True,
     })
     lr: float = 0.001
     l_max: int = 16000
@@ -46,4 +44,36 @@ class AutoregressiveConfig:
 
 @dataclass
 class DiffusionConfig:
-    pass
+
+    model_dir: str = MISSING
+    data_dir: str = MISSING
+
+    # Model settings 
+    glu: bool = True
+    l_max: int = 16000
+    tie_state: bool = False
+    d_model: int = 128
+    n_layers: int = 6
+    pool: List[int] = fix([4, 4])
+    expand: int = 2
+    ff: int = 2
+    unet: bool = True
+    diffwave: bool = True
+    dropout: float = 0.0
+    # optimization settings
+    batch_size: int = 16
+    learning_rate: float = 2e-4
+    max_grad_norm: Union[int, None] = None
+    # diffusion settings
+    unconditional: bool = True
+    sample_rate: int = 16000
+    audio_len: int = 16000
+
+    noise_schedule: List[float] = fix(np.linspace(1e-4, 0.02, 200).tolist())
+    inference_noise_schedule: List[float] = fix([0.0001, 0.001, 0.01, 0.05, 0.2, 0.5])
+
+    max_steps: int = 800000 # 800k
+    fp16: bool = False
+    seed: int = 123
+
+

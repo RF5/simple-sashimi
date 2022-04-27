@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from sashimi.s4 import S4, LinearActivation
-from sashimi.config import AutoregressiveConfig
+from sashimi.config import AutoregressiveConfig, DiffusionConfig
 
 
 def swish(x):
@@ -51,7 +51,7 @@ def calc_diffusion_step_embedding(diffusion_steps, diffusion_step_embed_dim_in):
 
     half_dim = diffusion_step_embed_dim_in // 2
     _embed = np.log(10000) / (half_dim - 1)
-    _embed = torch.exp(torch.arange(half_dim) * -_embed).cuda()
+    _embed = torch.exp(torch.arange(half_dim) * -_embed).to(diffusion_steps.device)
     _embed = diffusion_steps * _embed
     diffusion_step_embed = torch.cat((torch.sin(_embed), torch.cos(_embed)), 1)
 
@@ -291,6 +291,9 @@ class DiffWaveS4Block(nn.Module):
             diffusion_step_embed_dim_out=512,
             unconditional=False,
             mel_upsample=[16, 16],
+            l_max=16000,
+            postact=None,
+            tie_state=False
         ):
         super().__init__()
         self.d_model = d_model
@@ -302,13 +305,15 @@ class DiffWaveS4Block(nn.Module):
             d_model, 
             bidirectional=True,
             hurwitz=True, # use the Hurwitz parameterization for stability
-            tie_state=True, # tie SSM parameters across d_state in the S4 layer
+            tie_state=tie_state, # tie SSM parameters across d_state in the S4 layer
             trainable={
                 'dt': True,
                 'A': True,
                 'P': True,
                 'B': True,
             }, # train all internal S4 parameters
+            l_max=l_max,
+            postact=postact
         )
         self.norm = nn.LayerNorm(d_model)
 
@@ -478,12 +483,15 @@ class Sashimi(nn.Module):
                 ZeroConv1d(d_model, out_channels),
             )
 
-            def s4_block(dim):
+            def s4_block(dim, kwargs):
                 return DiffWaveS4Block(
                     d_model=dim,
                     diffusion_step_embed_dim_out=self.diffusion_step_embed_dim_out,
-                    unconditional=kwargs.get('unconditional', False),
+                    unconditional=kwargs.get('unconditional', True),
                     mel_upsample=kwargs.get('mel_upsample', [16, 16]),
+                    l_max=kwargs['l_max'],
+                    postact='glu' if glu else None,
+                    tie_state=kwargs['tie_state']
                 )
 
         # Down blocks
@@ -685,7 +693,25 @@ class SashimiAR(nn.Module):
         logits = self.head(y) # (bs, seq_len, mu_levels)
         return logits
 
+class SashimiDiffWave(nn.Module):
 
+    def __init__(self, cfg: DiffusionConfig) -> None:
+        super().__init__()
+
+        self.sashimi = Sashimi(**cfg)
+        print(f"Initialized DiffWave Sashimi with {sum([p.numel() for p in self.parameters()]):,d} parameters.")
+
+    def forward(self, x:Tensor, diffusion_steps: Tensor, spectrogram=None) -> Tensor:
+        """ Accepts raw waveforms in range [-1, 1] `x` of shape (bs, seq_len) and
+        `diffusion_steps` of shape (bs,). `spectrogram` is unused and should not be given. 
+        Only done for compatibility with diffwave training code.
+        """
+        # internally we must add extra dimensions
+        x = x[..., None] # (bs, seq_len, 1)
+        diffusion_steps = diffusion_steps[..., None] # (bs, 1)
+        y, _ = self.sashimi((x, diffusion_steps)) # y is (bs, seq_len, 1)
+        y = y.squeeze(-1)
+        return y
 
 
 if __name__ == '__main__':

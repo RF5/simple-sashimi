@@ -177,9 +177,9 @@ def train(rank, cfg: TrainConfig):
             scaler.load_state_dict(state_dict['scaler_state_dict'])
 
     model.train()
-    
+    max_epochs = math.ceil(cfg.max_steps/len(train_loader))
     if rank == 0: 
-        max_epochs = math.ceil(cfg.max_steps/len(train_loader))
+        
         mb = master_bar(range(max(0, last_epoch), max_epochs))
         sw.add_text('config', '```\n' + OmegaConf.to_yaml(cfg) + '\n```', global_step=steps)
         smooth_loss = None
