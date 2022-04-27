@@ -76,4 +76,12 @@ class DiffusionConfig:
     fp16: bool = False
     seed: int = 123
 
-
+    # And I quote:
+    # "All optimization and diffusion hyperparameters were kept the same, with the 
+    # exception that we manually decayed the learning rate of the large SaShiMi model 
+    # at 500K steps as it had saturated and the model had already caught up 
+    # to the best DiffWave model."
+    # ... What did they decay it to? lol very reproducible :)
+    # I am making a best guess as being the same as the plateau decay factor of 0.2
+    # used in the autoregressive type models. 
+    decay_factor_at_500k: float = 0.2

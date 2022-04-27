@@ -124,6 +124,11 @@ class DiffWaveLearner:
                     if self.step % len(self.dataset) == 0:
                         self.save_to_checkpoint()
                 self.step += 1
+                if self.step == 500000:
+                    pre = self.optimizer.param_groups[0]['lr']
+                    self.optimizer.param_groups[0]['lr'] *= self.params.decay_factor_at_500k
+                    post = self.optimizer.param_groups[0]['lr']
+                    print(f"Manually decaying at {self.steps} as per paper. lr {pre:6.5f}->{post:6.5f}")
 
     def train_step(self, features):
         for param in self.model.parameters():
@@ -194,10 +199,6 @@ def train_distributed(replica_id, replica_count, port, args, params):
     model = SashimiDiffWave(params).to(device)
     model = DistributedDataParallel(model, device_ids=[replica_id])
     _train_impl(replica_id, model, dataset, args, params)
-
-
-
-
 
 
 def _get_free_port():
