@@ -108,11 +108,14 @@ class DiffWaveLearner:
 
     def train(self, max_steps=None):
         device = next(self.model.parameters()).device
+        print(self.dataset.batch_size)
         while True:
             pb = progress_bar(self.dataset) if self.is_master else self.dataset
-            pb.comment = f'Epoch {self.step // len(self.dataset)}'
+            if self.is_master: pb.comment = f'Epoch {self.step // len(self.dataset)}'
             for features in pb: #, desc=) if self.is_master else self.dataset:
                 if max_steps is not None and self.step >= max_steps:
+                    if self.is_master:
+                        self.save_to_checkpoint('weights-last')
                     return
                 features = _nested_map(features, lambda x: x.to(device) if isinstance(x, torch.Tensor) else x)
                 loss = self.train_step(features)

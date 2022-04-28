@@ -11,7 +11,6 @@ Karan Goel, Albert Gu, Chris Donahue, Christopher Re.
 Adapted from https://github.com/HazyResearch/state-spaces/blob/diffwave/sashimi/sashimi.py
 """
 
-from turtle import forward
 import warnings
 
 import numpy as np

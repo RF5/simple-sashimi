@@ -63,6 +63,7 @@ class UnconditionalDataset(Dataset):
         self.filenames = []
         for path in paths:
             self.filenames += glob(f'{path}/**/*.wav', recursive=True)
+        print(f"Dataset initialied with {len(self.filenames):,d} utterances.")
 
     def __len__(self):
         return len(self.filenames)

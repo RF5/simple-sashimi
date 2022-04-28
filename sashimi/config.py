@@ -49,6 +49,7 @@ class DiffusionConfig:
     data_dir: str = MISSING
 
     # Model settings 
+    # (is 23.5M params, a bit higher than the paper despite as close settings as I could match...)
     glu: bool = True
     l_max: int = 16000
     tie_state: bool = False
@@ -61,7 +62,7 @@ class DiffusionConfig:
     diffwave: bool = True
     dropout: float = 0.0
     # optimization settings
-    batch_size: int = 16
+    batch_size: int = 8 #16 # good luck trying to get a 16 batch size without at least 2 80GB A100s :(
     learning_rate: float = 2e-4
     max_grad_norm: Union[int, None] = None
     # diffusion settings
