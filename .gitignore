@@ -1,4 +1,6 @@
 splits/
 **/__pycache__/
 runs/
+extensions/
+.ipynb_checkpoints/
 *.zip

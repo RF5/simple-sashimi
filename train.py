@@ -1,6 +1,6 @@
 import argparse
 import logging
-import os
+import os, gc
 import math
 import random
 import time
@@ -46,7 +46,7 @@ class TrainConfig:
     
     batch_size: int = 8
     num_workers: int = 8
-    fp16: bool = True
+    fp16: bool = False
     max_steps: int = 1_100_000 # 1.1M steps for SC09 
     summary_interval: int = 25
     checkpoint_interval: int = 2500
@@ -215,7 +215,7 @@ def train(rank, cfg: TrainConfig):
                 if cfg.grad_clip > 0:
                     gnorm = torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), cfg.grad_clip)
                 else: 
-                    gnorm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2).to(device) for p in model.parameters()]), 2)
+                    gnorm = torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 1e8)
                 scaler.step(optim)
                 scaler.update()
             else: 
@@ -223,7 +223,7 @@ def train(rank, cfg: TrainConfig):
                 if cfg.grad_clip > 0:
                     gnorm = torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), cfg.grad_clip)
                 else: 
-                    gnorm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2).to(device) for p in model.parameters()]), 2)
+                    gnorm = torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 1e8)
                 optim.step()
 
             if rank == 0:
@@ -285,6 +285,10 @@ def train(rank, cfg: TrainConfig):
                         sw.add_scalar('validation/acc', float(acc), steps)
                         sw.add_scalar("validation/loss", val_err, steps)
                         mb.write(f"validation run complete at {steps:,d} steps. validation loss: {val_err:5.4f}")
+                        # trust we must do this to stop memory leaks
+                        del flat_logits
+                        del flat_lbls
+                        gc.collect()
 
                     scheduler.step(val_err)
                     model.train()
@@ -293,6 +297,8 @@ def train(rank, cfg: TrainConfig):
                     sw.add_scalar("memory/max_reserved_gb", torch.cuda.max_memory_reserved()/1e9, steps)
                     torch.cuda.reset_peak_memory_stats()
                     torch.cuda.reset_accumulated_memory_stats()
+                    torch.cuda.empty_cache()
+                    gc.collect() # why not twice to be sure
 
             steps += 1
             if steps > cfg.max_steps: 

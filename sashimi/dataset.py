@@ -11,6 +11,7 @@ from glob import glob
 from torch.utils.data.distributed import DistributedSampler
 import os
 import numpy as np
+import pandas as pd
 
 class ARDataset(Dataset):
 
@@ -58,11 +59,13 @@ class ARCollate():
 # adapted from https://github.com/lmnt-com/diffwave
 
 class UnconditionalDataset(Dataset):
-    def __init__(self, paths):
+    def __init__(self, df_paths):
         super().__init__()
         self.filenames = []
-        for path in paths:
-            self.filenames += glob(f'{path}/**/*.wav', recursive=True)
+        for path in df_paths:
+            df = pd.read_csv(path)
+            self.filenames += df.path.tolist()
+            # self.filenames += glob(f'{path}/**/*.wav', recursive=True)
         print(f"Dataset initialied with {len(self.filenames):,d} utterances.")
 
     def __len__(self):

@@ -131,7 +131,7 @@ class DiffWaveLearner:
                     pre = self.optimizer.param_groups[0]['lr']
                     self.optimizer.param_groups[0]['lr'] *= self.params.decay_factor_at_500k
                     post = self.optimizer.param_groups[0]['lr']
-                    print(f"Manually decaying at {self.steps} as per paper. lr {pre:6.5f}->{post:6.5f}")
+                    print(f"Manually decaying at {self.step} as per paper. lr {pre:6.5f}->{post:6.5f}")
 
     def train_step(self, features):
         for param in self.model.parameters():

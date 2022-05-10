@@ -17,8 +17,11 @@ import numpy as np
 import torch
 from torch import Tensor
 import torch.nn as nn
+import torchaudio
 import torch.nn.functional as F
 from einops import rearrange
+from fastprogress.fastprogress import progress_bar
+
 
 from sashimi.s4 import S4, LinearActivation
 from sashimi.config import AutoregressiveConfig, DiffusionConfig
@@ -684,6 +687,7 @@ class SashimiAR(nn.Module):
         self.sashimi = Sashimi(**cfg)
         self.mu_embedder = nn.Embedding(cfg.mu_levels, cfg.d_model)
         self.head = nn.Linear(cfg.d_model, cfg.mu_levels)
+        self.cfg = cfg
 
     def forward(self, x: Tensor, lengths: Tensor) -> Tensor:
         """ Accepts mu-law encoded batch `x` (bs, seq_len), int64, returns float logits of same shape """
@@ -691,6 +695,63 @@ class SashimiAR(nn.Module):
         y, _ = self.sashimi(x)
         logits = self.head(y) # (bs, seq_len, mu_levels)
         return logits
+
+    @torch.inference_mode()
+    def unconditional_generate(self, N: int, nucleus_p=1.0, progress=True, mb=None) -> Tensor:
+        """ Generate `N` audio samples, returning a tensor of shape (N, 16000) """
+        mu_tfm = torchaudio.transforms.MuLawEncoding(self.cfg.mu_levels)
+        mu_detfm = torchaudio.transforms.MuLawDecoding(self.cfg.mu_levels)
+
+        bs = N
+        device = next(self.parameters()).device
+        x = torch.zeros(bs, 1)
+        x = mu_tfm(x).to(device)
+        x = self.mu_embedder(x)
+        x = x.squeeze(1)
+        
+        self.sashimi.setup_rnn() # setup S4 layers in recurrent mode
+        # alternately, use sashimi.setup_rnn('diagonal') for a speedup
+        # Run recurrence
+        ys = []
+        state = self.sashimi.default_state(*x.shape[:1], device=device)
+        if progress: pb = progress_bar(range(16000), parent=mb)
+        else: pb = range(16000)
+
+        for i in pb:
+            y_, state = self.sashimi.step(x, state)
+            logits = self.head(y_)
+            
+            ## Special sampling methods come in here.
+            
+            # nucleus sampling 
+            # apply softmax to convert to probabilities
+            probs = F.softmax(logits, dim=-1).detach()
+            sorted_probs, sorted_inds = torch.sort(probs, dim=-1, descending=True)
+            cs = torch.cumsum(sorted_probs, dim=-1)
+
+            sorted_indices_to_remove = cs > nucleus_p
+            # Shift the indices to the right to keep also the first token above the threshold
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+            sorted_indices_to_remove[..., 0] = 0
+
+            for b in range(bs):
+                indices_to_remove = sorted_inds[b, sorted_indices_to_remove[b]]
+                probs[b, indices_to_remove] = 0.0
+
+            # Renormalize:
+            probs = probs / probs.sum(dim=-1)[:, None]
+            # Sample next sample:
+            ix = torch.multinomial(probs, num_samples=1).squeeze(1)
+            next_input = ix
+            
+            if progress: pb.comment = f"sampled token: {int(next_input[0])}"
+            x = self.mu_embedder(next_input)
+            
+            ys.append(next_input.cpu())
+
+        ys = torch.stack(ys, dim=1) # ys.shape == x.shape
+        audio = mu_detfm(ys)
+        return audio
 
 class SashimiDiffWave(nn.Module):
 
