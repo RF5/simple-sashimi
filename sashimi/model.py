@@ -12,7 +12,7 @@ Adapted from https://github.com/HazyResearch/state-spaces/blob/diffwave/sashimi/
 """
 
 import warnings
-
+import math
 import numpy as np
 import torch
 from torch import Tensor
@@ -681,6 +681,9 @@ class Sashimi(nn.Module):
 
 
 class SashimiAR(nn.Module):
+
+    supports_nll: bool = True
+
     def __init__(self, cfg: AutoregressiveConfig) -> None:
         super().__init__()
 
@@ -752,6 +755,29 @@ class SashimiAR(nn.Module):
         ys = torch.stack(ys, dim=1) # ys.shape == x.shape
         audio = mu_detfm(ys)
         return audio
+
+    @torch.inference_mode()
+    def nll(self, wavs: Tensor) -> Tensor:
+        """ Gets likelihood for `wavs` (N, 16000), returning neg log likelihoods (N,) """
+        mu_tfm = torchaudio.transforms.MuLawEncoding(self.cfg.mu_levels)
+
+        bs = wavs.shape[0]
+        device = next(self.parameters()).device
+        wavs_ = F.pad(wavs, (1, 0), value=0)
+        x = mu_tfm(wavs_).to(device)
+        logits = self.forward(x[:, :-1], None)
+        # we predict the next token, so we must offset by one
+        targ_inds = x[:, 1:]
+        logits = torch.gather(logits, -1, targ_inds[..., None]).squeeze(-1)
+        logprobs = F.log_softmax(logits, dim=-1) # (N, 16000)
+        likelihood = logprobs.sum(dim=-1) # (N,)
+        nll = -likelihood
+        per_sam_nll = nll/wavs.shape[-1]
+        per_sam_nll_b2 = per_sam_nll/math.log(2, math.e)
+        print(per_sam_nll_b2)
+        raise AssertionError()
+        return nll
+        
 
 class SashimiDiffWave(nn.Module):
 
