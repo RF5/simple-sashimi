@@ -12,7 +12,7 @@ The two models are detailed:
 | Model | Params | Training iters | Checkpoint |
 | -- | --: | :--: | :--: |
 | Autoregressive Sashimi | 4.8M | 1.1M | [weights link](https://github.com/RF5/simple-sashimi/releases/download/v1.0/ckpt_01100000.pt) , [hosted tensorboard logs](https://tensorboard.dev/experiment/S3QB9BAVQYOOEA09VSndVQ/#scalars) |
-| DiffWave Sashimi | 23.5M | 800k | TODO |
+| DiffWave Sashimi | 23.5M | 800k | [see this repo](https://github.com/RF5/DiffWave-unconditional) |
 
 ### Quickstart 
 Both models support torchhub, and assuming you have `torch`, `torchaudio`, `einops`, `opt_einsum`, and `scipy` installed in your python environment, you can simply run:
