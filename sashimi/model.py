@@ -757,26 +757,43 @@ class SashimiAR(nn.Module):
         return audio
 
     @torch.inference_mode()
-    def nll(self, wavs: Tensor) -> Tensor:
-        """ Gets likelihood for `wavs` (N, 16000), returning neg log likelihoods (N,) """
+    def nll(self, wavs: Tensor, progress=True, mb=None) -> Tensor:
+        """ Gets likelihood for `wavs` (N, 16000), returning per-sample neg log likelihoods (N,) """
         mu_tfm = torchaudio.transforms.MuLawEncoding(self.cfg.mu_levels)
 
+        device = wavs.device
         bs = wavs.shape[0]
-        device = next(self.parameters()).device
-        wavs_ = F.pad(wavs, (1, 0), value=0)
-        x = mu_tfm(wavs_).to(device)
-        logits = self.forward(x[:, :-1], None)
-        # we predict the next token, so we must offset by one
-        targ_inds = x[:, 1:]
-        logits = torch.gather(logits, -1, targ_inds[..., None]).squeeze(-1)
-        logprobs = F.log_softmax(logits, dim=-1) # (N, 16000)
-        likelihood = logprobs.sum(dim=-1) # (N,)
-        nll = -likelihood
-        per_sam_nll = nll/wavs.shape[-1]
-        per_sam_nll_b2 = per_sam_nll/math.log(2, math.e)
-        print(per_sam_nll_b2)
-        raise AssertionError()
-        return nll
+        x = F.pad(wavs, (1,0)) # (bs, 16001)
+        x = mu_tfm(x).to(device)
+        # keep ground-truth labels
+        gt_x = x.clone()
+        x = x[:, 0] # (bs, 1)
+        x = self.mu_embedder(x) 
+        x = x.squeeze(1)
+
+        logprobs = torch.empty_like(wavs).double().fill_(torch.nan) # base e logprobs
+        
+        self.sashimi.setup_rnn() # setup S4 layers in recurrent mode
+        # alternately, use sashimi.setup_rnn('diagonal') for a speedup
+        # Run recurrence
+        state = self.sashimi.default_state(*x.shape[:1], device=device)
+        if progress: pb = progress_bar(range(16000), parent=mb)
+        else: pb = range(16000)
+
+        for i in pb:
+            y_, state = self.sashimi.step(x, state)
+            logits = self.head(y_)
+            
+            probs = F.softmax(logits.double(), dim=-1)
+            next_input = gt_x[:, i+1]
+            logprobs[:, i] = torch.log(torch.gather(probs, -1, next_input[..., None])).squeeze(-1)
+            
+            if progress: pb.comment = f"sampled token: {int(next_input[0])} | logprob: {sum(logprobs[0, :i])}"
+            x = self.mu_embedder(next_input)
+        
+        nll = -logprobs
+        mean_nll = nll.mean(dim=-1)
+        return mean_nll # unreduced NLL
         
 
 class SashimiDiffWave(nn.Module):

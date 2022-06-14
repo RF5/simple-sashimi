@@ -8,9 +8,10 @@ from omegaconf import OmegaConf
 
 def sashimi_ar_sc09(pretrained=True, progress=True, device='cuda'):
     """ SaShiMi autoregressive model trained on SC09 dataset. """
-    # Fix link once hosted
-    fp = Path(__file__).parent
-    checkpoint = torch.load(fp/'runs/ar3/ckpt_01100000.pt', map_location=device)
+    checkpoint = torch.hub.load_state_dict_from_url(
+        'https://github.com/RF5/simple-sashimi/releases/download/v1.0/ckpt_01100000.pt', map_location=device
+    )
+    
     cfg = OmegaConf.create(checkpoint['cfg_yaml'])
     sashimi = SashimiAR(cfg.model_cfg).to(device)
     if pretrained:
