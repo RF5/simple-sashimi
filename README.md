@@ -70,6 +70,5 @@ This repo uses code adapted from several previous works:
 
 1. The [state-spaces repo of the original SaShiMi authors](https://github.com/HazyResearch/state-spaces/)
 2. Some diffusion training and inference code from the [DiffWave author's official implementation](https://github.com/lmnt-com/diffwave)
-3. FID computation is done with the classifier from [this repo](https://github.com/RF5/simple-speech-commands).
 
-
+Thanks to the original authors for the cool work you have done in developing SaShiMi.
