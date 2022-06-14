@@ -19,10 +19,16 @@ Both models support torchhub, and assuming you have `torch`, `torchaudio`, `eino
 
 ```python
 import torch
-
-model = torch.hub.load('RF5/simple-sashimi', 'sashimi_ar_sc09')
+# load model
+model = torch.hub.load('RF5/simple-sashimi', 'sashimi_ar_sc09', device='cuda') # use cpu if no gpu
+# generate e.g. 4 utterances with no nucleus sampling (i.e. direct greedy sampling).
+audio = model.unconditional_generate(4, nucleus_p=1.0)
+# audio is now (4, 16000) tensor of 4 one-second utterances.
 
 ```
+
+That's it!
+Alternatively, `model.forward()` accepts mu-law encoded batch `x` of shape (bs, seq_len), int64, and returns float logits of same shape over the mu-law encoded bins if you wish to implement your own custom sampling methods.
 
 ### Differences to the original paper
 The [original work](https://arxiv.org/abs/2202.09729) leaves out several pieces of information necessary to reproduce the work, and the provided [source code](https://github.com/HazyResearch/state-spaces/) does not include details on the diffusion experiments. 
