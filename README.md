@@ -44,7 +44,7 @@ The full model config for both the autoregressive and diffusion Sashimi models a
 
 **For inference**:  `torch`, `torchaudio`, `einops`, `opt_einsum`, and `scipy`
 
-**For training**: the same as inference, but also `fastprogress`, `omegaconf`, tensorboard plugin for torch, `pandas`, and optionally the CUDA kernel specified below. 
+**For training**: the same as inference, but also `fastprogress`, `omegaconf`, `tensorboard` plugin for torch, `pandas`, `packaging`, and optionally the CUDA kernel specified below. 
 
 ### Using the cauchy kernel speedup
 To speed and **reduce memory usage** up cauchy kernel computation, you must compile the CUDA kernel operations from [the original repo](https://github.com/HazyResearch/state-spaces/tree/main#cauchy-kernel). 
