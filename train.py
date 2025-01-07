@@ -274,8 +274,8 @@ def train(rank, cfg: TrainConfig):
                             logits = logits.view(-1, cfg.model_cfg.mu_levels)
                             y_ = y.view(-1)
                             val_err_tot += loss_fn(logits, y_)
-                            flat_logits.append(logits.cpu()) # (bs*seq_len, mu_levels)
-                            flat_lbls.append(y_.cpu()) # bs*seq_len
+                            flat_logits.append(logits.cpu().detach().half()) # (bs*seq_len, mu_levels)
+                            flat_lbls.append(y_.cpu().detach()) # bs*seq_len
 
                         val_err = val_err_tot / (j+1)
                         flat_logits = torch.cat(flat_logits, dim=0)
